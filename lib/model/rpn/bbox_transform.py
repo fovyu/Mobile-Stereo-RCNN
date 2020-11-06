@@ -9,10 +9,12 @@
 # --------------------------------------------------------
 # Modified by Peiliang Li for Stereo RCNN
 # --------------------------------------------------------
+# Modified by Mohamed Khaled
+# --------------------------------------------------------
 
 import torch
-import numpy as np
-import pdb
+
+cuda_is_available = torch.cuda.is_available()
 
 def bbox_transform(ex_rois, gt_rois):
     ex_widths = ex_rois[:, 2] - ex_rois[:, 0] + 1.0
@@ -135,7 +137,10 @@ def kpts_transform_inv(boxes, kpts_deltas, grid):
     widths = boxes[:, :, 2] - boxes[:, :, 0] + 1.0
     ctr_x = boxes[:, :, 0]
 
-    d = kpts_deltas[:,:,0].type(torch.cuda.FloatTensor)
+    if cuda_is_available:
+        d = kpts_deltas[:,:,0].type(torch.cuda.FloatTensor)
+    else:
+        d = kpts_deltas[:, :, 0].type(torch.FloatTensor)
     kpts_type = (d/grid)
     kpts_delta = (d%grid) 
     
@@ -147,8 +152,11 @@ def border_transform_inv(boxes, border_deltas, grid):
     # kpts_delta s: 1 x num x 1 
     widths = boxes[:, :, 2] - boxes[:, :, 0] + 1.0
     ctr_x = boxes[:, :, 0]
-    
-    d = border_deltas[:, :, 0].type(torch.cuda.FloatTensor)
+
+    if cuda_is_available:
+        d = border_deltas[:, :, 0].type(torch.cuda.FloatTensor)
+    else:
+        d = border_deltas[:, :, 0].type(torch.FloatTensor)
 
     pred_kpts = d * widths/grid + ctr_x
 

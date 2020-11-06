@@ -5,40 +5,40 @@
 
 # Modified by Peiliang Li for Stereo RCNN test
 # --------------------------------------------------------
+# Modified by Mohamed Khaled
+# --------------------------------------------------------
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import _init_paths
-import os
-import sys
-import numpy as np
 import argparse
-import shutil
-import time
-import cv2
-import torch
-from torch.autograd import Variable
-import torch.nn as nn
-import torch.optim as optim
 import math as m
-from roi_data_layer.roidb import combined_roidb
-from roi_data_layer.roibatchLoader import roibatchLoader
-from model.utils.config import cfg
-from model.rpn.bbox_transform import clip_boxes
+import os
+import shutil
+import sys
+import time
+
+import cv2
+import numpy as np
+import torch
+from model.dense_align import dense_align
 from model.roi_layers import nms
 from model.rpn.bbox_transform import bbox_transform_inv, kpts_transform_inv, border_transform_inv
-from model.utils.net_utils import save_net, load_net, vis_detections
+from model.rpn.bbox_transform import clip_boxes
 from model.stereo_rcnn.resnet import resnet
+from model.utils import box_estimator as box_estimator
 from model.utils import kitti_utils
 from model.utils import vis_3d_utils as vis_utils
-from model.utils import box_estimator as box_estimator
-from model.dense_align import dense_align
+from model.utils.config import cfg
+from model.utils.net_utils import vis_detections
+from roi_data_layer.roibatchLoader import roibatchLoader
+from roi_data_layer.roidb import combined_roidb
+from torch.autograd import Variable
 
-try:
-    xrange          # Python 2
-except NameError:
-    xrange = range  # Python 3
+cuda_is_available = torch.cuda.is_available()
+available_device = torch.device('cuda' if cuda_is_available else 'cpu')
+
+xrange = range
 
 def parse_args():
   """
@@ -84,31 +84,42 @@ if __name__ == '__main__':
   stereoRCNN.create_architecture()
 
   print("load checkpoint %s" % (load_name))
-  checkpoint = torch.load(load_name)
+  checkpoint = torch.load(load_name, map_location=available_device)
   stereoRCNN.load_state_dict(checkpoint['model'])
   print('load model successfully!')
 
   with torch.no_grad():
     # initilize the tensor holder here.
-    im_left_data = Variable(torch.FloatTensor(1).cuda())
-    im_right_data = Variable(torch.FloatTensor(1).cuda())
-    im_info = Variable(torch.FloatTensor(1).cuda())
-    num_boxes = Variable(torch.LongTensor(1).cuda())
-    gt_boxes_left = Variable(torch.FloatTensor(1).cuda())
-    gt_boxes_right = Variable(torch.FloatTensor(1).cuda())
-    gt_boxes_merge = Variable(torch.FloatTensor(1).cuda())
-    gt_dim_orien = Variable(torch.FloatTensor(1).cuda())
-    gt_kpts = Variable(torch.FloatTensor(1).cuda())
+    if cuda_is_available:
+      im_left_data = Variable(torch.FloatTensor(1).cuda())
+      im_right_data = Variable(torch.FloatTensor(1).cuda())
+      im_info = Variable(torch.FloatTensor(1).cuda())
+      num_boxes = Variable(torch.LongTensor(1).cuda())
+      gt_boxes_left = Variable(torch.FloatTensor(1).cuda())
+      gt_boxes_right = Variable(torch.FloatTensor(1).cuda())
+      gt_boxes_merge = Variable(torch.FloatTensor(1).cuda())
+      gt_dim_orien = Variable(torch.FloatTensor(1).cuda())
+      gt_kpts = Variable(torch.FloatTensor(1).cuda())
 
-    stereoRCNN.cuda()
+      stereoRCNN.cuda()
+    else:
+      im_left_data = Variable(torch.FloatTensor(1))
+      im_right_data = Variable(torch.FloatTensor(1))
+      im_info = Variable(torch.FloatTensor(1))
+      num_boxes = Variable(torch.LongTensor(1))
+      gt_boxes_left = Variable(torch.FloatTensor(1))
+      gt_boxes_right = Variable(torch.FloatTensor(1))
+      gt_boxes_merge = Variable(torch.FloatTensor(1))
+      gt_dim_orien = Variable(torch.FloatTensor(1))
+      gt_kpts = Variable(torch.FloatTensor(1))
 
     eval_thresh = 0.05
     vis_thresh = 0.7
 
     num_images = len(imdb.image_index)
 
-    dataset = roibatchLoader(roidb, ratio_list, ratio_index, 1, \
-                          imdb.num_classes, training=False, normalize = False)
+    dataset = roibatchLoader(roidb, ratio_list, ratio_index, 1,
+                             imdb.num_classes, training=False, normalize = False)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1,
                               shuffle=False, num_workers=0,
                               pin_memory=True)
@@ -119,22 +130,22 @@ if __name__ == '__main__':
     for i in range(num_images):
       
       data = next(data_iter)
-      im_left_data.data.resize_(data[0].size()).copy_(data[0])
-      im_right_data.data.resize_(data[1].size()).copy_(data[1])
-      im_info.data.resize_(data[2].size()).copy_(data[2])
-      gt_boxes_left.data.resize_(data[3].size()).copy_(data[3])
-      gt_boxes_right.data.resize_(data[4].size()).copy_(data[4])
-      gt_boxes_merge.data.resize_(data[5].size()).copy_(data[5])
-      gt_dim_orien.data.resize_(data[6].size()).copy_(data[6])
-      gt_kpts.data.resize_(data[7].size()).copy_(data[7])
-      num_boxes.data.resize_(data[8].size()).copy_(data[8])
+      im_left_data.resize_(data[0].size()).copy_(data[0])
+      im_right_data.resize_(data[1].size()).copy_(data[1])
+      im_info.resize_(data[2].size()).copy_(data[2])
+      gt_boxes_left.resize_(data[3].size()).copy_(data[3])
+      gt_boxes_right.resize_(data[4].size()).copy_(data[4])
+      gt_boxes_merge.resize_(data[5].size()).copy_(data[5])
+      gt_dim_orien.resize_(data[6].size()).copy_(data[6])
+      gt_kpts.resize_(data[7].size()).copy_(data[7])
+      num_boxes.resize_(data[8].size()).copy_(data[8])
       
       det_tic = time.time()
       rois_left, rois_right, cls_prob, bbox_pred, bbox_pred_dim, kpts_prob,\
       left_prob, right_prob, rpn_loss_cls, rpn_loss_box_left_right,\
       RCNN_loss_cls, RCNN_loss_bbox, RCNN_loss_dim_orien, RCNN_loss_kpts, rois_label =\
-      stereoRCNN(im_left_data, im_right_data, im_info, gt_boxes_left, gt_boxes_right,\
-                gt_boxes_merge, gt_dim_orien, gt_kpts, num_boxes)
+      stereoRCNN(im_left_data, im_right_data, im_info, gt_boxes_left, gt_boxes_right,
+                 gt_boxes_merge, gt_dim_orien, gt_kpts, num_boxes)
       
       scores = cls_prob.data
       boxes_left = rois_left.data[:, :, 1:5]
@@ -173,12 +184,20 @@ if __name__ == '__main__':
       right_prob = right_prob.view(-1,cfg.KPTS_GRID)
       _, right_delta = torch.max(right_prob,1)
 
-      box_delta_left = box_delta_left * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-                 + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
-      box_delta_right = box_delta_right * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-                 + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
-      dim_orien = dim_orien * torch.FloatTensor(cfg.TRAIN.DIM_NORMALIZE_STDS).cuda() \
-                 + torch.FloatTensor(cfg.TRAIN.DIM_NORMALIZE_MEANS).cuda()
+      if cuda_is_available:
+        box_delta_left = box_delta_left * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
+                   + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+        box_delta_right = box_delta_right * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
+                   + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+        dim_orien = dim_orien * torch.FloatTensor(cfg.TRAIN.DIM_NORMALIZE_STDS).cuda() \
+                   + torch.FloatTensor(cfg.TRAIN.DIM_NORMALIZE_MEANS).cuda()
+      else:
+        box_delta_left = box_delta_left * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS) \
+                         + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS)
+        box_delta_right = box_delta_right * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS) \
+                          + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS)
+        dim_orien = dim_orien * torch.FloatTensor(cfg.TRAIN.DIM_NORMALIZE_STDS) \
+                    + torch.FloatTensor(cfg.TRAIN.DIM_NORMALIZE_MEANS)
 
 
       box_delta_left = box_delta_left.view(1,-1,4*len(imdb._classes))
@@ -267,10 +286,10 @@ if __name__ == '__main__':
                0.5*(infered_kpts[detect_idx,1]-infered_kpts[detect_idx,0]):
               cls_kpts[detect_idx,3:5] = infered_kpts[detect_idx]
 
-          im2show_left = vis_detections(im2show_left, imdb._classes[j], \
-                          cls_dets_left.cpu().numpy(), vis_thresh, cls_kpts.cpu().numpy())
-          im2show_right = vis_detections(im2show_right, imdb._classes[j], \
-                          cls_dets_right.cpu().numpy(), vis_thresh) 
+          im2show_left = vis_detections(im2show_left, imdb._classes[j],
+                                        cls_dets_left.cpu().numpy(), vis_thresh, cls_kpts.cpu().numpy())
+          im2show_right = vis_detections(im2show_right, imdb._classes[j],
+                                         cls_dets_right.cpu().numpy(), vis_thresh)
 
           # read intrinsic
           f = calib.p2[0,0]
@@ -291,8 +310,8 @@ if __name__ == '__main__':
               sin_alpha = cls_dim_orien[detect_idx,3]
               cos_alpha = cls_dim_orien[detect_idx,4]
               alpha = m.atan2(sin_alpha, cos_alpha)
-              status, state = box_estimator.solve_x_y_z_theta_from_kpt(im2show_left.shape, calib, alpha, \
-                                            dim, box_left, box_right, cls_kpts[detect_idx].cpu().numpy())
+              status, state = box_estimator.solve_x_y_z_theta_from_kpt(im2show_left.shape, calib, alpha,
+                                                                       dim, box_left, box_right, cls_kpts[detect_idx].cpu().numpy())
               if status > 0: # not faild
                 poses = im_left_data.data.new(8).zero_()
                 xyz = np.array([state[0], state[1], state[2]])
@@ -306,9 +325,9 @@ if __name__ == '__main__':
           
           if boxes_all.dim() > 0:
             # solve disparity by dense alignment (enlarged image)
-            succ, dis_final = dense_align.align_parallel(calib, im_info.data[0,2], \
-                                                im_left_data.data, im_right_data.data, \
-                                                boxes_all[:,0:4], kpts_all, poses_all[:,0:7])
+            succ, dis_final = dense_align.align_parallel(calib, im_info.data[0,2],
+                                                         im_left_data.data, im_right_data.data,
+                                                         boxes_all[:,0:4], kpts_all, poses_all[:,0:7])
             
             # do 3D rectify using the aligned disparity
             for solved_idx in range(succ.size(0)):
@@ -316,9 +335,9 @@ if __name__ == '__main__':
                 box_left = boxes_all[solved_idx,0:4].cpu().numpy()
                 score = boxes_all[solved_idx,4].cpu().numpy()
                 dim = poses_all[solved_idx,3:6].cpu().numpy()
-                state_rect, z = box_estimator.solve_x_y_theta_from_kpt(im2show_left.shape, calib, \
-                                                  poses_all[solved_idx,7].cpu().numpy(), dim, box_left, \
-                                                  dis_final[solved_idx].cpu().numpy(), kpts_all[solved_idx].cpu().numpy())
+                state_rect, z = box_estimator.solve_x_y_theta_from_kpt(im2show_left.shape, calib,
+                                                                       poses_all[solved_idx,7].cpu().numpy(), dim, box_left,
+                                                                       dis_final[solved_idx].cpu().numpy(), kpts_all[solved_idx].cpu().numpy())
                 xyz = np.array([state_rect[0], state_rect[1], z])
                 theta = state_rect[2]
 
@@ -327,7 +346,7 @@ if __name__ == '__main__':
                   im2show_left = vis_utils.vis_single_box_in_img(im2show_left, calib, xyz, dim, theta)
 
                 # write result into txt file
-                kitti_utils.write_detection_results(result_dir, image_number, calib, box_left,\
+                kitti_utils.write_detection_results(result_dir, image_number, calib, box_left,
                                                     xyz, dim, theta, score)
           solve_time = time.time() - solve_tic
 

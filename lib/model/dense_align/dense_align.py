@@ -1,14 +1,11 @@
-import random
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
-import torchvision.models as models
-from torch.autograd import Variable
+# Modified by Mohamed Khaled
+# --------------------------------------------------------
 import numpy as np
-import math as m
+import torch
+import torch.nn.functional as F
 from model.dense_align.box_3d import Box3d
 
+cuda_is_available = torch.cuda.is_available()
 
 def sample(calib, scale, f_h, f_w, box_left, poses, borders):
 	''' Return sample pixel for the left image in the valid RoI region
@@ -27,13 +24,15 @@ def sample(calib, scale, f_h, f_w, box_left, poses, borders):
 	'''
 	f = calib.p2[0,0]*scale
 	cx, cy = calib.p2[0,2]*scale, calib.p2[1,2]*scale
-
 	u_axis = torch.Tensor(np.reshape(np.array(range(f_w)),[1,f_w,1]))   # 1 x f_w x 1
-	u_axis = u_axis.expand(f_h,-1,-1).type(torch.cuda.FloatTensor).type_as(box_left) 	  # f_h x f_w x 1
 	v_axis = torch.Tensor(np.reshape(np.array(range(f_h)),[f_h,1,1]))   # f_h x 1 x 1
-	v_axis = v_axis.expand(-1,f_w,-1).type(torch.cuda.FloatTensor).type_as(box_left)	  # f_h x f_w x 1
-	uv_axis = torch.cat((u_axis, v_axis),2) # f_h x f_w x 2
-	
+	if cuda_is_available:
+		u_axis = u_axis.expand(f_h, -1, -1).type(torch.cuda.FloatTensor).type_as(box_left)  # f_h x f_w x 1
+		v_axis = v_axis.expand(-1, f_w, -1).type(torch.cuda.FloatTensor).type_as(box_left)  # f_h x f_w x 1
+	else:
+		u_axis = u_axis.expand(f_h, -1, -1).type(torch.FloatTensor).type_as(box_left)  # f_h x f_w x 1
+		v_axis = v_axis.expand(-1, f_w, -1).type(torch.FloatTensor).type_as(box_left)  # f_h x f_w x 1
+	uv_axis = torch.cat((u_axis, v_axis), 2)  # f_h x f_w x 2
 	all_uvzs= []
 	max_pixels = 0
 	for i in range(box_left.size(0)):
@@ -50,9 +49,9 @@ def sample(calib, scale, f_h, f_w, box_left, poses, borders):
 
 		box_3d = Box3d(poses[i])
 		valid_insec = box_3d.BoxRayInsec(norm_uv)
-		valid_uvz = torch.cat((local_uv[:,:,0][valid_insec[:,:,3]==1].view(-1,1),\
-								local_uv[:,:,1][valid_insec[:,:,3]==1].view(-1,1),\
-								valid_insec[:,:,2][valid_insec[:,:,3]==1].view(-1,1)),1)
+		valid_uvz = torch.cat((local_uv[:,:,0][valid_insec[:,:,3]==1].view(-1,1),
+							   local_uv[:,:,1][valid_insec[:,:,3]==1].view(-1,1),
+							   valid_insec[:,:,2][valid_insec[:,:,3]==1].view(-1,1)),1)
 		
 		if valid_uvz.dim() >0 and valid_uvz.size(0) > max_pixels:
 			max_pixels = valid_uvz.size(0)
@@ -63,12 +62,12 @@ def sample(calib, scale, f_h, f_w, box_left, poses, borders):
 	all_weight = uv_axis.new(box_left.size(0), max_pixels).zero_()
 	for i in range(len(all_uvzs)):
 		if all_uvzs[i].dim() > 0:
-			all_uvz[i,:all_uvzs[i].size(0),:] = all_uvzs[i]
+			all_uvz[i,:all_uvzs[i].size(0), :] = all_uvzs[i]
 			all_weight[i,:all_uvzs[i].size(0)] = 1.0
 
 	return all_uvz, all_weight
 
-def align(calib, scale, im_left, im_right, \
+def align(calib, scale, im_left, im_right,
 		  box_left, keypoints, poses):
 	''' Dense alignment for multiple objects
 
@@ -94,9 +93,10 @@ def align(calib, scale, im_left, im_right, \
 	keypoints = keypoints*scale
 
 	dis_init = f*bl/poses[:,2]
-	dis_init = dis_init.cuda()
+	if cuda_is_available:
+		dis_init = dis_init.cuda()
 
-	all_uvz, all_weight = sample(calib, scale, im_left.size(2), im_left.size(3), \
+	all_uvz, all_weight = sample(calib, scale, im_left.size(2), im_left.size(3),
 								 box_left, poses, keypoints[:,3:5])
 
 	solve_status = box_left.new(box_left.size(0)).zero_()
@@ -237,8 +237,8 @@ def enumeration_depth(im_left, im_right, all_uvz, all_weight, depth_enum, fb):
 
 	return best_depth
 
-def align_parallel(calib, scale, im_left, im_right, \
-		  			box_left, keypoints, poses):
+def align_parallel(calib, scale, im_left, im_right,
+				   box_left, keypoints, poses):
 	''' Dense alignment for multiple objects in parallel for depth enumeration
 
 	Inputs:
@@ -263,11 +263,12 @@ def align_parallel(calib, scale, im_left, im_right, \
 	poses = poses
 	dis_init = box_left.new(box_left.size(0)).zero_()  # in 1/4 feature map 
 	dis_init = f*bl/poses[:,2]
-	dis_init = dis_init.cuda()
+	if cuda_is_available:
+		dis_init = dis_init.cuda()
 
 	# rois x pixels x 3, rois x pixels
-	all_uvz, all_weight = sample(calib, scale, im_left.size(2), im_left.size(3), \
-									box_left, poses, keypoints[:,3:5])
+	all_uvz, all_weight = sample(calib, scale, im_left.size(2), im_left.size(3),
+								 box_left, poses, keypoints[:,3:5])
 
 	solve_status = box_left.new(box_left.size(0)).zero_()
 	if torch.sum(all_weight) == 0:
@@ -299,4 +300,3 @@ def align_parallel(calib, scale, im_left, im_right, \
 
 	return solve_status, best_dis
 
-    

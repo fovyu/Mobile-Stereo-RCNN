@@ -9,19 +9,20 @@
 # --------------------------------------------------------
 # Modified by Peiliang Li for Stereo RCNN
 # --------------------------------------------------------
+# Modified by Mohamed Khaled
+# --------------------------------------------------------
 
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import math
-from model.utils.config import cfg
-from model.rpn.generate_anchors import generate_anchors, generate_anchors_all_pyramids
-from model.rpn.bbox_transform import bbox_transform_inv, clip_boxes, clip_boxes_batch
 from model.roi_layers import nms
-
-import pdb
+from model.rpn.bbox_transform import bbox_transform_inv, clip_boxes
+from model.rpn.generate_anchors import generate_anchors_all_pyramids
+from model.utils.config import cfg
 
 DEBUG = False
+
+cuda_is_available = torch.cuda.is_available()
 
 class _ProposalLayer(nn.Module):
     """
@@ -124,8 +125,12 @@ class _ProposalLayer(nn.Module):
             keep_idx_i_right = nms(proposals_single_right, scores_single.squeeze(1), nms_thresh)
             keep_idx_i_right = keep_idx_i_right.long().view(-1)
 
-            keep_idx_i = torch.from_numpy(np.intersect1d(keep_idx_i_left.cpu().numpy(), \
-                                                         keep_idx_i_right.cpu().numpy())).cuda()
+            if cuda_is_available:
+                keep_idx_i = torch.from_numpy(np.intersect1d(keep_idx_i_left.cpu().numpy(),
+                                                             keep_idx_i_right.cpu().numpy())).cuda()
+            else:
+                keep_idx_i = torch.from_numpy(np.intersect1d(keep_idx_i_left.cpu().numpy(),
+                                                             keep_idx_i_right.cpu().numpy()))
             if post_nms_topN > 0:
                 keep_idx_i = keep_idx_i[:post_nms_topN]
 

@@ -9,14 +9,18 @@
 # --------------------------------------------------------
 # Modified by Peiliang Li for Stereo RCNN
 # --------------------------------------------------------
+# Modified by Mohamed Khaled
+# --------------------------------------------------------
 
-import torch
-import torch.nn as nn
 import numpy as np
 import numpy.random as npr
-from ..utils.config import cfg
+import torch
+import torch.nn as nn
 from model.rpn.bbox_transform import bbox_overlaps_batch, bbox_transform_batch
-import pdb
+
+from ..utils.config import cfg
+
+cuda_is_available = torch.cuda.is_available()
 
 class _ProposalTargetLayer(nn.Module):
     """
@@ -33,7 +37,7 @@ class _ProposalTargetLayer(nn.Module):
         self.DIM_NORMALIZE_STDS = torch.FloatTensor(cfg.TRAIN.DIM_NORMALIZE_STDS)
         self.BBOX_INSIDE_WEIGHTS = torch.FloatTensor(cfg.TRAIN.BBOX_INSIDE_WEIGHTS)
 
-    def forward(self, all_rois_left, all_rois_right, gt_boxes_left, gt_boxes_right, \
+    def forward(self, all_rois_left, all_rois_right, gt_boxes_left, gt_boxes_right,
                 gt_dim_orien, gt_kpts, num_boxes):
 
         self.BBOX_NORMALIZE_MEANS = self.BBOX_NORMALIZE_MEANS.type_as(gt_boxes_left)
@@ -57,8 +61,8 @@ class _ProposalTargetLayer(nn.Module):
         fg_rois_per_image = int(np.round(cfg.TRAIN.FG_FRACTION * rois_per_image))
 
         labels, rois_left, rois_right, gt_assign_left, bbox_targets_left, bbox_targets_right, \
-            dim_orien_targets, kpts_targets, kpts_weight, bbox_inside_weights = self._sample_rois_pytorch(\
-            all_rois_left, all_rois_right, gt_boxes_left, gt_boxes_right, gt_dim_orien, \
+            dim_orien_targets, kpts_targets, kpts_weight, bbox_inside_weights = self._sample_rois_pytorch(
+            all_rois_left, all_rois_right, gt_boxes_left, gt_boxes_right, gt_dim_orien,
             gt_kpts, fg_rois_per_image, rois_per_image, self._num_classes)
 
         bbox_outside_weights = (bbox_inside_weights > 0).float()
@@ -181,19 +185,26 @@ class _ProposalTargetLayer(nn.Module):
         target[target > grid_size-1] = -225 
         kpts_pos, kpts_type = torch.max(target[:,:,:4], 2) # B x num_rois 
         kpts_pos = kpts_pos.unsqueeze(2) 
-        kpts_type = kpts_type.unsqueeze(2) 
-        target = torch.cat((kpts_type.type(torch.cuda.FloatTensor)*grid_size+kpts_pos,\
-                            target[:,:,4:].type(torch.cuda.FloatTensor)),2) 
+        kpts_type = kpts_type.unsqueeze(2)
+        if cuda_is_available:
+            target = torch.cat((kpts_type.type(torch.cuda.FloatTensor)*grid_size+kpts_pos,
+                                target[:,:,4:].type(torch.cuda.FloatTensor)),2)
+        else:
+            target = torch.cat((kpts_type.type(torch.cuda.FloatTensor) * grid_size + kpts_pos,
+                                target[:, :, 4:].type(torch.cuda.FloatTensor)), 2)
         weight = target.new(target.size()).zero_() 
         weight[:] = 1 
         weight[target < 0] = 0 
         target[target < 0]= 0 
-        
-        return target.type(torch.cuda.LongTensor), weight # bs x 128 x 3
+
+        if cuda_is_available:
+            return target.type(torch.cuda.LongTensor), weight # bs x 128 x 3
+        else:
+            return target.type(torch.LongTensor), weight  # bs x 128 x 3
 
 
-    def _sample_rois_pytorch(self, all_rois_left, all_rois_right, gt_boxes_left, gt_boxes_right, \
-                            gt_dim_orien, gt_kpts, fg_rois_per_image, rois_per_image, num_classes):
+    def _sample_rois_pytorch(self, all_rois_left, all_rois_right, gt_boxes_left, gt_boxes_right,
+                             gt_dim_orien, gt_kpts, fg_rois_per_image, rois_per_image, num_classes):
         """Generate a random sample of RoIs comprising foreground and background
         examples.
         """
@@ -238,7 +249,10 @@ class _ProposalTargetLayer(nn.Module):
                                     (max_overlaps_left[i] >= cfg.TRAIN.BG_THRESH_LO)).view(-1)
             bg_inds_right = torch.nonzero((max_overlaps_right[i] < cfg.TRAIN.BG_THRESH_HI) &
                                     (max_overlaps_right[i] >= cfg.TRAIN.BG_THRESH_LO)).view(-1)
-            bg_inds = torch.from_numpy(np.union1d(bg_inds_left.cpu().numpy(), bg_inds_right.cpu().numpy())).cuda()
+            if cuda_is_available:
+                bg_inds = torch.from_numpy(np.union1d(bg_inds_left.cpu().numpy(), bg_inds_right.cpu().numpy())).cuda()
+            else:
+                bg_inds = torch.from_numpy(np.union1d(bg_inds_left.cpu().numpy(), bg_inds_right.cpu().numpy()))
             bg_num_rois = bg_inds.numel()
 
             if fg_num_rois > 0 and bg_num_rois > 0:

@@ -1,17 +1,19 @@
+# Modified by Mohamed Khaled
+# --------------------------------------------------------
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from model.utils.config import cfg
-from model.stereo_rcnn.stereo_rcnn import _StereoRCNN
+import math
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
-import math
 import torch.utils.model_zoo as model_zoo
-import pdb
+from model.stereo_rcnn.stereo_rcnn import _StereoRCNN
+from model.utils.config import cfg
+
+cuda_is_available = torch.cuda.is_available()
+available_device = torch.device('cuda' if cuda_is_available else 'cpu')
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
        'resnet152']
@@ -230,7 +232,7 @@ class resnet(_StereoRCNN):
 
     if self.pretrained == True:
       print("Loading pretrained weights from %s" %(self.model_path))
-      state_dict = torch.load(self.model_path)
+      state_dict = torch.load(self.model_path, map_location=available_device)
       resnet.load_state_dict({k:v for k,v in state_dict.items() if k in resnet.state_dict()})
       
     self.RCNN_layer0 = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool)

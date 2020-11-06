@@ -5,32 +5,29 @@
 
 # Modified by Peiliang Li for Stereo RCNN train
 # --------------------------------------------------------
+# Modified by Mohamed Khaled
+# --------------------------------------------------------
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import _init_paths
-import os
-import sys
-import numpy as np
 import argparse
+import os
 import time
 
+import numpy as np
 import torch
+from model.stereo_rcnn.resnet import resnet
+from model.utils.config import cfg
+from model.utils.net_utils import adjust_learning_rate, save_checkpoint, clip_gradient
+from roi_data_layer.roibatchLoader import roibatchLoader
+from roi_data_layer.roidb import combined_roidb
 from torch.autograd import Variable
-import torch.nn as nn
-import torch.optim as optim
-
-import torchvision.transforms as transforms
 from torch.utils.data.sampler import Sampler
 
-from roi_data_layer.roidb import combined_roidb
-from roi_data_layer.roibatchLoader import roibatchLoader
-from model.utils.config import cfg
-from model.utils.net_utils import weights_normal_init, save_net, load_net, \
-      adjust_learning_rate, save_checkpoint, clip_gradient
+cuda_is_available = torch.cuda.is_available()
+available_device = torch.device('cuda' if cuda_is_available else 'cpu')
 
-from model.stereo_rcnn.resnet import resnet
 
 def parse_args():
   '''
@@ -128,22 +125,33 @@ if __name__ == '__main__':
 
   sampler_batch = sampler(train_size, args.batch_size)
 
-  dataset = roibatchLoader(roidb, ratio_list, ratio_index, args.batch_size, \
+  dataset = roibatchLoader(roidb, ratio_list, ratio_index, args.batch_size,
                            imdb.num_classes, training=True)
 
   dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size,
                             sampler=sampler_batch, num_workers=args.num_workers)
 
   # initilize the tensor holder here.
-  im_left_data = Variable(torch.FloatTensor(1).cuda())
-  im_right_data = Variable(torch.FloatTensor(1).cuda())
-  im_info = Variable(torch.FloatTensor(1).cuda())
-  num_boxes = Variable(torch.LongTensor(1).cuda())
-  gt_boxes_left = Variable(torch.FloatTensor(1).cuda())
-  gt_boxes_right = Variable(torch.FloatTensor(1).cuda())
-  gt_boxes_merge = Variable(torch.FloatTensor(1).cuda())
-  gt_dim_orien = Variable(torch.FloatTensor(1).cuda())
-  gt_kpts = Variable(torch.FloatTensor(1).cuda())
+  if cuda_is_available:
+    im_left_data = Variable(torch.FloatTensor(1).cuda())
+    im_right_data = Variable(torch.FloatTensor(1).cuda())
+    im_info = Variable(torch.FloatTensor(1).cuda())
+    num_boxes = Variable(torch.LongTensor(1).cuda())
+    gt_boxes_left = Variable(torch.FloatTensor(1).cuda())
+    gt_boxes_right = Variable(torch.FloatTensor(1).cuda())
+    gt_boxes_merge = Variable(torch.FloatTensor(1).cuda())
+    gt_dim_orien = Variable(torch.FloatTensor(1).cuda())
+    gt_kpts = Variable(torch.FloatTensor(1).cuda())
+  else:
+    im_left_data = Variable(torch.FloatTensor(1))
+    im_right_data = Variable(torch.FloatTensor(1))
+    im_info = Variable(torch.FloatTensor(1))
+    num_boxes = Variable(torch.LongTensor(1))
+    gt_boxes_left = Variable(torch.FloatTensor(1))
+    gt_boxes_right = Variable(torch.FloatTensor(1))
+    gt_boxes_merge = Variable(torch.FloatTensor(1))
+    gt_dim_orien = Variable(torch.FloatTensor(1))
+    gt_kpts = Variable(torch.FloatTensor(1))
 
   # initilize the network here.
   stereoRCNN = resnet(imdb.classes, 101, pretrained=True)
@@ -152,15 +160,18 @@ if __name__ == '__main__':
 
   lr = cfg.TRAIN.LEARNING_RATE
 
-  uncert = Variable(torch.rand(6).cuda(), requires_grad=True)
+  if cuda_is_available:
+    uncert = Variable(torch.rand(6).cuda(), requires_grad=True)
+  else:
+    uncert = Variable(torch.rand(6), requires_grad=True)
   torch.nn.init.constant(uncert, -1.0)
 
   params = []
   for key, value in dict(stereoRCNN.named_parameters()).items():
     if value.requires_grad:
       if 'bias' in key:
-        params += [{'params':[value],'lr':lr*(cfg.TRAIN.DOUBLE_BIAS + 1), \
-                'weight_decay': cfg.TRAIN.BIAS_DECAY and cfg.TRAIN.WEIGHT_DECAY or 0}]
+        params += [{'params':[value],'lr':lr*(cfg.TRAIN.DOUBLE_BIAS + 1),
+                    'weight_decay': cfg.TRAIN.BIAS_DECAY and cfg.TRAIN.WEIGHT_DECAY or 0}]
       else:
         params += [{'params':[value],'lr':lr, 'weight_decay': cfg.TRAIN.WEIGHT_DECAY}]
   params += [{'params':[uncert], 'lr':lr}]
@@ -171,14 +182,15 @@ if __name__ == '__main__':
     load_name = os.path.join(output_dir,
       'stereo_rcnn_{}_{}.pth'.format(args.checkepoch, args.checkpoint))
     log_string('loading checkpoint %s' % (load_name))
-    checkpoint = torch.load(load_name)
+    checkpoint = torch.load(load_name, map_location=available_device)
     args.start_epoch = checkpoint['epoch']
     stereoRCNN.load_state_dict(checkpoint['model'])
     lr = optimizer.param_groups[0]['lr']
     uncert.data = checkpoint['uncert']
     log_string('loaded checkpoint %s' % (load_name))
 
-  stereoRCNN.cuda()
+  if cuda_is_available:
+    stereoRCNN.cuda()
 
   iters_per_epoch = int(train_size / args.batch_size)
   for epoch in range(args.start_epoch, args.max_epochs + 1):
@@ -191,24 +203,25 @@ if __name__ == '__main__':
         lr *= args.lr_decay_gamma
 
     data_iter = iter(dataloader)
+    step = 0
     for step in range(iters_per_epoch):
       data = next(data_iter)
-      im_left_data.data.resize_(data[0].size()).copy_(data[0])
-      im_right_data.data.resize_(data[1].size()).copy_(data[1])
-      im_info.data.resize_(data[2].size()).copy_(data[2])
-      gt_boxes_left.data.resize_(data[3].size()).copy_(data[3])
-      gt_boxes_right.data.resize_(data[4].size()).copy_(data[4])
-      gt_boxes_merge.data.resize_(data[5].size()).copy_(data[5])
-      gt_dim_orien.data.resize_(data[6].size()).copy_(data[6])
-      gt_kpts.data.resize_(data[7].size()).copy_(data[7])
-      num_boxes.data.resize_(data[8].size()).copy_(data[8]) 
+      im_left_data.resize_(data[0].size()).copy_(data[0])
+      im_right_data.resize_(data[1].size()).copy_(data[1])
+      im_info.resize_(data[2].size()).copy_(data[2])
+      gt_boxes_left.resize_(data[3].size()).copy_(data[3])
+      gt_boxes_right.resize_(data[4].size()).copy_(data[4])
+      gt_boxes_merge.resize_(data[5].size()).copy_(data[5])
+      gt_dim_orien.resize_(data[6].size()).copy_(data[6])
+      gt_kpts.resize_(data[7].size()).copy_(data[7])
+      num_boxes.resize_(data[8].size()).copy_(data[8]) 
 
       start = time.time() 
       stereoRCNN.zero_grad()
       rois_left, rois_right, cls_prob, bbox_pred, dim_orien_pred, kpts_prob, \
       left_border_prob, right_border_prob, rpn_loss_cls, rpn_loss_box_left_right,\
       RCNN_loss_cls, RCNN_loss_bbox, RCNN_loss_dim_orien, RCNN_loss_kpts, rois_label =\
-      stereoRCNN(im_left_data, im_right_data, im_info, gt_boxes_left, gt_boxes_right, \
+      stereoRCNN(im_left_data, im_right_data, im_info, gt_boxes_left, gt_boxes_right,
                  gt_boxes_merge, gt_dim_orien, gt_kpts, num_boxes)
 
       loss = rpn_loss_cls.mean() * torch.exp(-uncert[0]) + uncert[0] +\

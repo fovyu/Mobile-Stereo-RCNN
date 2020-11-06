@@ -3,23 +3,18 @@
 # --------------------------------------------------------
 # Modified by Peiliang Li for Stereo RCNN
 # --------------------------------------------------------
-import random
+# Modified by Mohamed Khaled
+# --------------------------------------------------------
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable, gradcheck
-from torch.autograd.gradcheck import gradgradcheck
-import torchvision.models as models
-from torch.autograd import Variable
-import numpy as np
-import torchvision.utils as vutils
-from model.utils.config import cfg
-from model.rpn.stereo_rpn import _Stereo_RPN
 from model.roi_layers import ROIAlign
 from model.rpn.proposal_target_layer import _ProposalTargetLayer
+from model.rpn.stereo_rpn import _Stereo_RPN
+from model.utils.config import cfg
 from model.utils.net_utils import _smooth_l1_loss
-import time
-import pdb
+from torch.autograd import Variable
+
 
 class _StereoRCNN(nn.Module):
     """ FPN """
@@ -123,7 +118,7 @@ class _StereoRCNN(nn.Module):
         for i, l in enumerate(range(2, 6)):
             if (roi_level == l).sum() == 0:
                 continue
-            idx_l = (roi_level == l).nonzero().squeeze()
+            idx_l = (roi_level == l).nonzero(as_tuple=False).squeeze()
             if idx_l.dim() == 0:
                 idx_l = idx_l.unsqueeze(0)
             box_to_levels.append(idx_l)
@@ -140,7 +135,7 @@ class _StereoRCNN(nn.Module):
             
         return roi_pool_feat
 
-    def forward(self, im_left_data, im_right_data, im_info, gt_boxes_left, gt_boxes_right,\
+    def forward(self, im_left_data, im_right_data, im_info, gt_boxes_left, gt_boxes_right,
                 gt_boxes_merge, gt_dim_orien, gt_kpts, num_boxes):
         batch_size = im_left_data.size(0)
 
@@ -193,13 +188,13 @@ class _StereoRCNN(nn.Module):
         mrcnn_feature_maps_right = [p2_right, p3_right, p4_right, p5_right]
 
         rois_left, rois_right, rpn_loss_cls, rpn_loss_bbox_left_right = \
-            self.RCNN_rpn(rpn_feature_maps_left, rpn_feature_maps_right, \
-            im_info, gt_boxes_left, gt_boxes_right, gt_boxes_merge, num_boxes)
+            self.RCNN_rpn(rpn_feature_maps_left, rpn_feature_maps_right,
+                          im_info, gt_boxes_left, gt_boxes_right, gt_boxes_merge, num_boxes)
 
         # if it is training phrase, then use ground trubut bboxes for refining
         if self.training:
-            roi_data = self.RCNN_proposal_target(rois_left, rois_right, gt_boxes_left, gt_boxes_right, \
-                                                gt_dim_orien, gt_kpts, num_boxes)
+            roi_data = self.RCNN_proposal_target(rois_left, rois_right, gt_boxes_left, gt_boxes_right,
+                                                 gt_dim_orien, gt_kpts, num_boxes)
             rois_left, rois_right, rois_label, rois_target_left, rois_target_right,\
             rois_target_dim_orien, kpts_label_all, kpts_weight_all, rois_inside_ws4, rois_outside_ws4 = roi_data
 
@@ -247,7 +242,7 @@ class _StereoRCNN(nn.Module):
         # pooling features based on rois, output 14x14 map
         #roi_feat_left = self.PyramidRoI_Feat(mrcnn_feature_maps_left, rois_left, im_info)
         #roi_feat_right = self.PyramidRoI_Feat(mrcnn_feature_maps_right, rois_right, im_info)
-        roi_feat_semantic = torch.cat((self.PyramidRoI_Feat(mrcnn_feature_maps_left, rois_left, im_info),\
+        roi_feat_semantic = torch.cat((self.PyramidRoI_Feat(mrcnn_feature_maps_left, rois_left, im_info),
                                        self.PyramidRoI_Feat(mrcnn_feature_maps_right, rois_right, im_info)),1)
 
         # feed pooled features to top model
