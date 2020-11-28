@@ -29,7 +29,7 @@ cuda_is_available = torch.cuda.is_available()
 available_device = torch.device('cuda' if cuda_is_available else 'cpu')
 
 
-def parse_args():
+def parse_training_args():
   '''
   Parse input arguments
   '''
@@ -102,7 +102,7 @@ class sampler(Sampler):
 
 if __name__ == '__main__':
 
-  args = parse_args()
+  args = parse_training_args()
 
   print('Using config:')
   np.random.seed(cfg.RNG_SEED)

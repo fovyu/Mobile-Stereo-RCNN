@@ -34,34 +34,15 @@ from model.utils.net_utils import vis_detections
 from roi_data_layer.roibatchLoader import roibatchLoader
 from roi_data_layer.roidb import combined_roidb
 from torch.autograd import Variable
+from shared_utils import parse_testing_args
 
 cuda_is_available = torch.cuda.is_available()
 available_device = torch.device('cuda' if cuda_is_available else 'cpu')
 
-xrange = range
-
-def parse_args():
-  """
-  Parse input arguments
-  """
-  parser = argparse.ArgumentParser(description='Test the Stereo R-CNN network')
-
-  parser.add_argument('--load_dir', dest='load_dir',
-                      help='directory to load models', default="models_stereo",
-                      type=str)
-  parser.add_argument('--checkepoch', dest='checkepoch',
-                      help='checkepoch to load network',
-                      default=12, type=int)
-  parser.add_argument('--checkpoint', dest='checkpoint',
-                      help='checkpoint to load network',
-                      default=6477, type=int)
-
-  args = parser.parse_args()
-  return args
 
 if __name__ == '__main__':
 
-  args = parse_args()
+  args = parse_testing_args()
 
   np.random.seed(cfg.RNG_SEED)
 

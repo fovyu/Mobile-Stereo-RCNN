@@ -11,7 +11,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import argparse
 import math as m
 import os
 import sys
@@ -31,36 +30,15 @@ from model.utils import vis_3d_utils as vis_utils
 from model.utils.config import cfg
 from model.utils.net_utils import vis_detections
 from torch.autograd import Variable
+from shared_utils import parse_testing_args
 
 cuda_is_available = torch.cuda.is_available()
 available_device = torch.device('cuda' if cuda_is_available else 'cpu')
 
-xrange = range
-
-
-def parse_args():
-    """
-  Parse input arguments
-  """
-    parser = argparse.ArgumentParser(description='Test the Stereo R-CNN network')
-
-    parser.add_argument('--load_dir', dest='load_dir',
-                        help='directory to load models', default="models_stereo",
-                        type=str)
-    parser.add_argument('--checkepoch', dest='checkepoch',
-                        help='checkepoch to load network',
-                        default=12, type=int)
-    parser.add_argument('--checkpoint', dest='checkpoint',
-                        help='checkpoint to load network',
-                        default=6477, type=int)
-
-    args = parser.parse_args()
-    return args
-
 
 if __name__ == '__main__':
 
-    args = parse_args()
+    args = parse_testing_args()
 
     np.random.seed(cfg.RNG_SEED)
 
@@ -71,7 +49,7 @@ if __name__ == '__main__':
                              'stereo_rcnn_{}_{}.pth'.format(args.checkepoch, args.checkpoint))
     kitti_classes = np.asarray(['__background__', 'Car'])
 
-    # initilize the network here.
+    # initialize the network here.
     stereoRCNN = resnet(kitti_classes, 101, pretrained=False)
     stereoRCNN.create_architecture()
 
@@ -81,7 +59,7 @@ if __name__ == '__main__':
     print('load model successfully!')
 
     with torch.no_grad():
-        # initilize the tensor holder here.
+        # initialize the tensor holder here.
         if cuda_is_available:
             im_left_data = Variable(torch.FloatTensor(1).cuda())
             im_right_data = Variable(torch.FloatTensor(1).cuda())
@@ -241,7 +219,7 @@ if __name__ == '__main__':
         pointcloud = kitti_utils.get_point_cloud('demo/lidar.bin', calib)
         im_box = vis_utils.vis_lidar_in_bev(pointcloud, width=im2show_left.shape[0] * 2)
 
-        for j in xrange(1, len(kitti_classes)):
+        for j in range(1, len(kitti_classes)):
             inds = torch.nonzero(scores[:, j] > eval_thresh).view(-1)
             # if there is det
             if inds.numel() > 0:
