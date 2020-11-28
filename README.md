@@ -23,12 +23,12 @@ Go to https://pytorch.org/ and choose your cuda version and run the command gene
     git clone https://github.com/Mohmed-Khaled/MK-Stereo-RCNN.git
     cd MK-Stereo-RCNN
     pip install -r requirements.txt
-    ./build_libs.sh
+    ./build.sh
 ```
 
 ## 2.0 Quick Demo
 
-2.1 Set the folder for placing the model
+2.1 Create the folder for placing the model
 ```
     mkdir models_stereo
 ```
@@ -41,6 +41,10 @@ Go to https://pytorch.org/ and choose your cuda version and run the command gene
 ```
 
 If everything goes well, you will see the detection result on the left, right and bird's eye view image respectively.
+
+Some sample results:
+
+<img src="doc/results.png" width = 90% div align=center />
 
 ## 3.0 Dataset Preparation
 
@@ -82,9 +86,11 @@ Set corresponding CUDA_VISIBLE_DEVICES in test.sh, and run
 
 The results are saved in models_stereo/result/data by default.
 
-Some sample results:
-
-<img src="doc/results.png" width = 90% div align=center />
+To evalute average precision for your result run this script
+```
+    ./eval_results.sh
+```
+The evaluation code is based on the object development kit provided by [KITTI Object Benchmark](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d)
 
 ## 6.0 Acknowledgments
 
