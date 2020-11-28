@@ -9,4 +9,4 @@ else
     rm -f models_stereo/result/AP_result.txt
     mkdir models_stereo/result/plot
 fi
-./eval_tool/evaluate_object
+./eval_tool/build/evaluate_object
