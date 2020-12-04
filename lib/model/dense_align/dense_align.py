@@ -129,8 +129,8 @@ def align(calib, scale, im_left, im_right,
 		dis = depth.reciprocal()*f*bl
 		delta_d = (all_uvz[:,:,2]/(f*bl) + dis.reciprocal().unsqueeze(1).expand(-1,all_uvz.size(1))).reciprocal() # num calculate delta disparity for each pixel
 		grid_right[0,:,:,0] = (all_uvz[:,:,0] - delta_d - f_w/2)/(f_w/2)
-		error = F.grid_sample(im_left,grid_left, padding_mode='border')-\
-				F.grid_sample(im_right,grid_right, padding_mode='border')  # (1L, 3L, rois, num)
+		error = F.grid_sample(im_left,grid_left, padding_mode='border', align_corners=False)-\
+				F.grid_sample(im_right,grid_right, padding_mode='border', align_corners=False)  # (1L, 3L, rois, num)
 		
 		error = error.squeeze(0).data 					 		 # (3L, rois, num)
 		error_pixel = error.permute(1,0,2).contiguous() 	 	 # (rois, 3L, num)
@@ -155,8 +155,8 @@ def align(calib, scale, im_left, im_right,
 		dis = depth.reciprocal()*f*bl
 		delta_d = (all_uvz[:,:,2]/(f*bl) + dis.reciprocal().unsqueeze(1).expand(-1,all_uvz.size(1))).reciprocal() # num calculate delta disparity for each pixel
 		grid_right[0,:,:,0] = (all_uvz[:,:,0] - delta_d - f_w/2)/(f_w/2)
-		error = F.grid_sample(im_left,grid_left, padding_mode='border')-\
-				F.grid_sample(im_right,grid_right, padding_mode='border')  # (1L, 3L, rois, num)
+		error = F.grid_sample(im_left,grid_left, padding_mode='border', align_corners=False)-\
+				F.grid_sample(im_right,grid_right, padding_mode='border', align_corners=False)  # (1L, 3L, rois, num)
 		error = error.squeeze(0).data 					 		 # (3L, rois, num)
 		error_pixel = error.permute(1,0,2).contiguous() 	 	 # (rois, 3L, num)
 		error = error * all_weight
@@ -218,8 +218,8 @@ def enumeration_depth(im_left, im_right, all_uvz, all_weight, depth_enum, fb):
 	all_u = all_u.view(-1,pixels_num)               			  				          # (iter x rois) x pixels
 	grid_right[0,:,:,0] = (all_u - global_delta_d - f_w/2)/(f_w/2)
 	
-	error = F.grid_sample(im_left,grid_left, padding_mode='border')-\
-				F.grid_sample(im_right,grid_right, padding_mode='border')  		  		  # (1L, 3L, iter x rois, pixels)
+	error = F.grid_sample(im_left,grid_left, padding_mode='border', align_corners=False)-\
+				F.grid_sample(im_right,grid_right, padding_mode='border', align_corners=False)  		  		  # (1L, 3L, iter x rois, pixels)
 	
 	error = error.squeeze(0).data 					 		 							  # (3L, iter x rois, pixels)
 	error = error.permute(1,0,2).contiguous() 	 	 									  # ((iter x rois), 3L, pixels)
