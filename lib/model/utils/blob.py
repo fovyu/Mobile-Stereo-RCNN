@@ -11,11 +11,6 @@ import numpy as np
 # from scipy.misc import imread, imresize
 import cv2
 
-try:
-    xrange          # Python 2
-except NameError:
-    xrange = range  # Python 3
-
 
 def im_list_to_blob(imgs_left, imgs_right):
     """Convert a list of images into a network input.
@@ -28,7 +23,7 @@ def im_list_to_blob(imgs_left, imgs_right):
                     dtype=np.float32)
     blob_right = np.zeros((num_images, max_shape[0], max_shape[1], 3),
                     dtype=np.float32)
-    for i in xrange(num_images):
+    for i in range(num_images):
         im_l = imgs_left[i]
         im_r = imgs_right[i]
         blob_left[i, 0:im_l.shape[0], 0:im_l.shape[1], :] = im_l

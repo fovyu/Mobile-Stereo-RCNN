@@ -231,7 +231,7 @@ if __name__ == '__main__':
       pointcloud = kitti_utils.get_point_cloud(lidar_path, calib)
       im_box = vis_utils.vis_lidar_in_bev(pointcloud, width=im2show_left.shape[0]*2)
 
-      for j in xrange(1, imdb.num_classes):
+      for j in range(1, imdb.num_classes):
         inds = torch.nonzero(scores[:,j] > eval_thresh).view(-1)
         # if there is det
         if inds.numel() > 0:
@@ -344,8 +344,3 @@ if __name__ == '__main__':
           print('exit!')
           sys.exit()
   print('test finish, result is saved in %s' %result_dir)
-
-
-
-
-

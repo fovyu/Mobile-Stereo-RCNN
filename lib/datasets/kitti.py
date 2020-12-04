@@ -29,11 +29,6 @@ from .imdb import ROOT_DIR
 from model.utils import kitti_utils
 from model.utils.config import cfg
 
-try:
-    xrange          # Python 2
-except NameError:
-    xrange = range  # Python 3
-
 class kitti(imdb):
     def __init__(self, image_set, kitti_path=None):
         imdb.__init__(self, 'kitti_' + image_set)
@@ -44,7 +39,7 @@ class kitti(imdb):
 
         self._data_path = os.path.join(self._kitti_path)
         self._classes = ('__background__', 'Car')
-        self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
+        self._class_to_ind = dict(zip(self.classes, range(self.num_classes)))
         self._image_ext = '.png'
         self._image_index = self._load_image_set_index_new()
         # Default to roidb handler
@@ -276,4 +271,3 @@ class kitti(imdb):
                     'gt_subindexes': subindexes,
                     'gt_subindexes_flipped': subindexes_flipped,
                     'flipped' : False}
-        
