@@ -10,3 +10,4 @@ data/kitti/object
 *.so
 *.o
 .idea*
+eval_tool/evaluate_object
