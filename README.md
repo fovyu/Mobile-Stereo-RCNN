@@ -26,7 +26,7 @@ This implementation is tested with Anaconda Python 3.7 and Pytorch 1.10.0 on arm
     git clone https://github.com/fovyu/Mobile-Stereo-RCNN.git
     cd Mobile-Stereo-RCNN
     pip install -r requirements.txt
-    sudo apt-get install libboost-dev libboost-system-dev
+    sudo apt-get install cmake libboost-all-dev
     ./build.sh
 ```
 
