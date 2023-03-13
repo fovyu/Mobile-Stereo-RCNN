@@ -7,21 +7,21 @@ Stereo R-CNN focuses on accurate 3D object detection and estimation using image-
 
 ## 1.0 Install
 
-This implementation is tested with Anaconda Python 3.6 and Pytorch 1.7.0
+This implementation is tested with Anaconda Python 3.7 and Pytorch 1.10.0 on arm64.
 
 1.1 Create Conda Environment:
 ```
-    conda create -n env_stereo python=3.6
+    conda create -n env_stereo python=3.7
     conda activate env_stereo
 ```
-1.2 Install PyTorch 1.7.0
-
-Go to https://pytorch.org/ and choose your cuda version and run the command generated from the website
-
+1.2 Install PyTorch 1.10.0
+```
+conda install pytorch==1.10.0 torchvision==0.11.0 torchaudio==0.10.0 cpuonly -c pytorch
+```
 1.3 Clone Repo, Install Requirements, and Build:
 ```
-    git clone https://github.com/Mohmed-Khaled/LT-Stereo-RCNN.git
-    cd LT-Stereo-RCNN
+    git clone https://github.com/fovyu/Mobile-Stereo-RCNN.git
+    cd Mobile-Stereo-RCNN
     pip install -r requirements.txt
     ./build.sh
 ```
