@@ -14,13 +14,11 @@ This implementation is tested with Anaconda Python 3.7 and Pytorch 1.10.0 on arm
     conda create -n env_stereo python=3.7
     conda activate env_stereo
 ```
-1.2 Install PyTorch 1.10.0
+1.2 Install PyTorch
 
     https://torch.kmtea.eu/whl/stable.html
 ```    
-    wget https://github.com/KumaTea/pytorch-aarch64/releases/download/v1.10.0/torch-1.10.0-cp37-cp37m-linux_aarch64.whl
-    wget https://github.com/KumaTea/pytorch-aarch64/releases/download/v1.10.0/torchvision-0.11.0-cp37-cp37m-linux_aarch64.whl
-    pip install torch-1.10.0-cp37-cp37m-linux_aarch64.whl torchvision-0.11.0-cp37-cp37m-linux_aarch64.whl
+    pip install torch -f https://torch.kmtea.eu/whl/stable.html
 ```
 1.3 Clone Repo, Install Requirements, and Build:
 ```
