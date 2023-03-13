@@ -19,7 +19,8 @@ This implementation is tested with Anaconda Python 3.7 and Pytorch 1.10.0 on arm
     https://torch.kmtea.eu/whl/stable.html
 ```    
     wget https://github.com/KumaTea/pytorch-aarch64/releases/download/v1.10.0/torch-1.10.0-cp37-cp37m-linux_aarch64.whl
-    pip install torch-1.10.0-cp37-cp37m-linux_aarch64.whl
+    wget https://github.com/KumaTea/pytorch-aarch64/releases/download/v1.10.0/torchvision-0.11.0-cp37-cp37m-linux_aarch64.whl
+    pip install torch-1.10.0-cp37-cp37m-linux_aarch64.whl torchvision-0.11.0-cp37-cp37m-linux_aarch64.whl
 ```
 1.3 Clone Repo, Install Requirements, and Build:
 ```
