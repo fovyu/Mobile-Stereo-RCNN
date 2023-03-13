@@ -15,9 +15,9 @@ This implementation is tested with Anaconda Python 3.7 and Pytorch 1.10.0 on arm
     conda activate env_stereo
 ```
 1.2 Install PyTorch 1.10.0
-```
-conda install pytorch==1.10.0 torchvision==0.11.0 torchaudio==0.10.0 cpuonly -c pytorch
-```
+
+https://torch.kmtea.eu/whl/stable.html
+
 1.3 Clone Repo, Install Requirements, and Build:
 ```
     git clone https://github.com/fovyu/Mobile-Stereo-RCNN.git
